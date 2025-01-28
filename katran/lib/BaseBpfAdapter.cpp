@@ -167,10 +167,13 @@ static int NetlinkRoundtrip(const NetlinkMessage& msg) {
   char buf[MNL_SOCKET_BUFFER_SIZE];
   int ret = mnl_socket_recvfrom(nl, buf, sizeof(buf));
   while (ret > 0) {
+    LOG(INFO) << "Inside while loop";
     ret = mnl_cb_run(buf, ret, msg.seq(), portId, nullptr, nullptr);
+    LOG(INFO) << "Return code from cb_run " << ret;
     if (ret <= MNL_CB_STOP) {
       break;
     }
+    PLOG(ERROR) << "trying recvfrom again";
     ret = mnl_socket_recvfrom(nl, buf, sizeof(buf));
   }
   if (ret < 0) {
@@ -557,6 +560,8 @@ int BaseBpfAdapter::modifyXdpProg(
     const unsigned int ifindex,
     const uint32_t flags) {
   unsigned int seq = static_cast<unsigned int>(std::time(nullptr));
+  LOG(INFO) << "modifying xdp prog with fd: " << prog_fd
+          << " ifindex: " << ifindex << " flags: " << flags;
   auto msg = NetlinkMessage::XDP(seq, prog_fd, ifindex, flags);
   return NetlinkRoundtrip(msg);
 }

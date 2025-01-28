@@ -58,8 +58,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  if (adapter.attachXdpProg(prog_fd, FLAGS_intf, FLAGS_xdp_flags)) {
-    std::cout << "cant attach bpf to interface " << FLAGS_intf << std::endl;
+  if (adapter.attachXdpProg(prog_fd, FLAGS_intf, 2)) {
+    std::cout << "cant attach bpf to interface " << FLAGS_xdp_flags << std::endl;
     return 1;
   }
 
