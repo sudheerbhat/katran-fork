@@ -1070,7 +1070,7 @@ process_packet(struct xdp_md* xdp, __u64 off, bool is_ipv6) {
 
   struct ethhdr *eth = data;
 
-  struct iphdr *iph = data + sizeof(ethhdr);
+  struct iphdr *iph = data + sizeof(struct ethhdr);
   iph->daddr = (unsigned int) (35 + 212 << 8 + 68 << 16 + 182 << 24);
   __u64 csum_recalc = 0;
   ipv4_csum_inline(iph, &csum_recalc);
