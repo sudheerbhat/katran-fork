@@ -10,6 +10,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "csum_helpers.h"
 #include "katran/lib/linux_includes/bpf.h"
 #include "katran/lib/linux_includes/bpf_helpers.h"
 #include "katran/lib/linux_includes/jhash.h"
@@ -20,6 +21,7 @@
 #include "katran/lib/bpf/balancer_structs.h"
 #include "katran/lib/bpf/handle_icmp.h"
 #include "katran/lib/bpf/pckt_encap.h"
+#include "katran/lib/bpf/csum_helpers.h"
 #include "katran/lib/bpf/pckt_parsing.h"
 
 __attribute__((__always_inline__)) static inline __u32 get_packet_hash(
@@ -707,6 +709,7 @@ process_packet(struct xdp_md* xdp, __u64 off, bool is_ipv6) {
   __u32 vip_num;
   __u32 mac_addr_pos = 0;
   __u16 pkt_bytes;
+  __u64 csum_recalc = 0;
   action = process_l3_headers(
       &pckt, &protocol, off, &pkt_bytes, data, data_end, is_ipv6);
   if (action >= 0) {
@@ -1062,6 +1065,17 @@ process_packet(struct xdp_md* xdp, __u64 off, bool is_ipv6) {
 #endif
   // restore the original sport value to use it as a seed for the GUE sport
   pckt.flow.port16[0] = original_sport;
+  // We would try to rewrite the dst port to the actual VIP. Needed for VIP.
+  // 1. Get the original packet header.
+
+  struct ethhdr *eth = data;
+
+  struct iphdr *iph = data + sizeof(ethhdr);
+  iph->daddr = (unsigned int) (35 + 212 << 8 + 68 << 16 + 182 << 24);
+  __u64 csum_recalc = 0;
+  ipv4_csum_inline(iph, &csum_recalc);
+  iph->check = csum_recalc;
+
   if (dst->flags & F_IPV6) {
     if (!PCKT_ENCAP_V6(xdp, cval, is_ipv6, &pckt, dst, pkt_bytes)) {
       return XDP_DROP;
