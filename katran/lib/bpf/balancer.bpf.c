@@ -709,7 +709,6 @@ process_packet(struct xdp_md* xdp, __u64 off, bool is_ipv6) {
   __u32 vip_num;
   __u32 mac_addr_pos = 0;
   __u16 pkt_bytes;
-  __u64 csum_recalc = 0;
   action = process_l3_headers(
       &pckt, &protocol, off, &pkt_bytes, data, data_end, is_ipv6);
   if (action >= 0) {
@@ -1065,13 +1064,14 @@ process_packet(struct xdp_md* xdp, __u64 off, bool is_ipv6) {
 #endif
   // restore the original sport value to use it as a seed for the GUE sport
   pckt.flow.port16[0] = original_sport;
-  // We would try to rewrite the dst port to the actual VIP. Needed for VIP.
-  // 1. Get the original packet header.
 
   struct ethhdr *eth = data;
 
   struct iphdr *iph = data + sizeof(struct ethhdr);
-  iph->daddr = (unsigned int) (35 + 212 << 8 + 68 << 16 + 182 << 24);
+  __be32 new_daddr = (35 << 24) | (212 << 16) | (68 << 8) | 182;
+  iph->daddr = bpf_htonl(new_daddr);
+  
+  iph->check = 0;
   __u64 csum_recalc = 0;
   ipv4_csum_inline(iph, &csum_recalc);
   iph->check = csum_recalc;
