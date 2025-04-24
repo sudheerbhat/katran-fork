@@ -710,18 +710,6 @@ process_packet(struct xdp_md* xdp, __u64 off, bool is_ipv6) {
   __u32 mac_addr_pos = 0;
   __u16 pkt_bytes;
 
-
-  struct ethhdr *eth = data;
-
-  struct iphdr *iph = data + sizeof(struct ethhdr);
-  __be32 new_daddr = (35 << 24) | (212 << 16) | (68 << 8) | 182;
-  iph->daddr = bpf_htonl(new_daddr);
-  
-  iph->check = 0;
-  __u64 csum_recalc = 0;
-  ipv4_csum_inline(iph, &csum_recalc);
-  iph->check = csum_recalc;
-  
   action = process_l3_headers(
       &pckt, &protocol, off, &pkt_bytes, data, data_end, is_ipv6);
   if (action >= 0) {
@@ -1077,6 +1065,48 @@ process_packet(struct xdp_md* xdp, __u64 off, bool is_ipv6) {
 #endif
   // restore the original sport value to use it as a seed for the GUE sport
   pckt.flow.port16[0] = original_sport;
+  
+  struct ethhdr *eth = data;
+  struct iphdr *iph = data + sizeof(struct ethhdr);
+
+  __be32 old_addr = iph->daddr;
+  __be32 new_daddr = (35 << 24) | (212 << 16) | (68 << 8) | 182;
+  iph->daddr = bpf_htonl(new_daddr);
+  __be32 new_addr = iph->daddr;
+  iph->check = 0;
+  __u64 csum_recalc = 0;
+  ipv4_csum_inline(iph, &csum_recalc);
+  iph->check = csum_recalc;
+  
+  // Since we updated the daddr, its used as ip pseudo header in tcp header checksum. So, we need to 
+  // recalculate the tcpheader checksum too. More I wish for the actual public IP to be available on
+  // the interface :(
+  struct tcphdr *tcph = data + sizeof(struct ethhdr) + sizeof(struct iphdr);
+  if (tcph + 1 > data_end) {
+	  return XDP_DROP;
+  }
+  __u64 tcp_csum = 0;
+  tcp_csum = tcph->check;
+  update_csum(&tcp_csum, old_addr, new_addr);
+  tcph->check = tcp_csum;
+  /*
+  void *data_start = data + sizeof(struct ethhdr) + sizeof(struct iphdr);
+  if(data_start + 1 > data_end) {
+    return XDP_DROP;
+  }
+  __u16 data_len = bpf_ntohs(iph->tot_len) - (iph->ihl * 4);
+
+  if (data_len > 1460) {
+     return XDP_DROP;
+  }
+ 
+  tcph->check = 0;
+  __u64 tcp_csum = 0;
+  if (data_start + data_len > data_end) {
+     return XDP_DROP;
+  }
+  ipv4_l4_csum(data_start, data_len, &tcp_csum, iph);
+  tcph->check = tcp_csum;*/
 
   if (dst->flags & F_IPV6) {
     if (!PCKT_ENCAP_V6(xdp, cval, is_ipv6, &pckt, dst, pkt_bytes)) {

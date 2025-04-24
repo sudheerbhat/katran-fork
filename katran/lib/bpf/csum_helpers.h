@@ -60,6 +60,17 @@ __attribute__((__always_inline__)) static inline void ipv4_csum_inline(
 }
 
 __attribute__((__always_inline__)) static inline void
+update_csum(__u64* csum, __be32 old_addr, __be32 new_addr) {
+  *csum = ~*csum;
+  *csum = *csum & 0xffff;
+  __u32 tmp;
+  tmp = ~old_addr;
+  *csum += tmp;
+  *csum += new_addr;
+  *csum = csum_fold_helper(*csum);
+}
+
+__attribute__((__always_inline__)) static inline void
 ipv4_l4_csum(void* data_start, int data_size, __u64* csum, struct iphdr* iph) {
   __u32 tmp = 0;
   *csum = bpf_csum_diff(0, 0, &iph->saddr, sizeof(__be32), *csum);
