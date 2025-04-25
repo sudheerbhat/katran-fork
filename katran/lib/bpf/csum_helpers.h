@@ -59,6 +59,9 @@ __attribute__((__always_inline__)) static inline void ipv4_csum_inline(
   *csum = csum_fold_helper(*csum);
 }
 
+/**
+ * Direct adoption of https://datatracker.ietf.org/doc/html/rfc1624.
+ **/
 __attribute__((__always_inline__)) static inline void
 update_csum(__u64* csum, __be32 old_addr, __be32 new_addr) {
   *csum = ~*csum;
